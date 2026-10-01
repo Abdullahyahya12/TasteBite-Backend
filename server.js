@@ -1,4 +1,3 @@
-
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -27,12 +26,29 @@ const app = express();
 // Middleware
 // =========================
 
-// Allow frontend development server
+// Allow frontend development and production servers
+const allowedOrigins = [
+  "http://localhost:5173",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-    ],
+    origin: (origin, callback) => {
+      // Allow requests without an origin
+      // such as server-to-server requests
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(
+        new Error("Not allowed by CORS")
+      );
+    },
     methods: [
       "GET",
       "POST",
@@ -54,6 +70,28 @@ app.use(
     limit: "10kb",
   })
 );
+
+// =========================
+// Database Connection
+// =========================
+
+// Connect to MongoDB
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error(
+      "MongoDB connection error:",
+      error.message
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Database connection failed",
+    });
+  }
+});
 
 // =========================
 // Health Check
@@ -137,55 +175,8 @@ app.use(
 );
 
 // =========================
-// Start Server
+// Export Express App
 // =========================
 
-const PORT =
-  process.env.PORT || 5000;
-
-const startServer = async () => {
-  try {
-    // Connect to MongoDB first
-    await connectDB();
-
-    // Start Express server
-    app.listen(
-      PORT,
-      () => {
-        console.log(
-          `TasteBite server running on http://localhost:${PORT}`
-        );
-
-        console.log("");
-        console.log(
-          "Available API routes:"
-        );
-        console.log(
-          "Auth:    /api/auth"
-        );
-        console.log(
-          "Menu:    /api/menu"
-        );
-        console.log(
-          "Orders:  /api/orders"
-        );
-        console.log(
-          "Contact: /api/contact"
-        );
-        console.log(
-          "Chatbot: /api/chat"
-        );
-      }
-    );
-  } catch (error) {
-    console.error(
-      "Failed to start TasteBite server:",
-      error.message
-    );
-
-    process.exit(1);
-  }
-};
-
-startServer();
-
+// Vercel will handle the server
+module.exports = app;
